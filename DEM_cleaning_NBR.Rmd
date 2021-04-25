@@ -1,0 +1,167 @@
+---
+title: "DEM cleaning script"
+author: "Eleanor Horne"
+date: "05/02/2021"
+output: html_document
+---
+
+#SETUP
+
+```{r Clear workspace}
+
+rm(list =ls())
+```
+
+```{r Setup, include=FALSE}
+
+knitr::opts_knit$set(root.dir = "~/OneDrive - King's College London/Date_Eleanor_Horne/Project")
+
+knitr::opts_chunk$set(echo = TRUE,
+                      comment = NA,
+                      prompt = FALSE,
+                      cache = FALSE)
+
+```
+
+```{r Library script}
+source("../scripts/libraries.R")
+
+```
+
+```{r Functions script}
+
+source("../scripts/functions.R")
+
+```
+
+```{r  Retrieve date}
+
+date = Sys.Date()
+date
+```
+
+```{r Read in the data}
+
+nbr.dem.raw <- readRDS(file ="../data_raw/coping_nbr/demographics_coping_nbr.rds")
+
+dim(nbr.dem.raw)
+colnames(nbr.dem.raw)
+
+```
+
+```{r Select variables}
+
+exclude_cols_dem <- c("ID",
+                  "startDate",
+                  "endDate",
+                  "demographics.year")
+
+nbr.dem.raw.id <- nbr.dem.raw %>% #new dataset with ID
+  drop_na(subjectid) %>% # Drop NAs
+  distinct(subjectid, .keep_all = TRUE) %>% # Remove duplicates based on ID
+  select(ID = subjectid,
+         startDate = startDate,
+         Birthyear_unc = demographics.year, # Birthyear
+         Birthmonth = demographics.month, #Birthmonth
+         Birthday = demographics.day, #Birthday
+         sex = demographics.select_questionnaire_items_medical #Sex
+         ) %>%
+  add_numeric(., exclude = exclude_cols_dem) %>%
+  mutate_if(is.numeric, ~na_if(., -88)) %>% # Recode missing values to NAs in numeric variables
+  mutate_if(is.numeric, ~na_if(., -99)) %>%
+  mutate_if(is.numeric, ~na_if(., -77)) %>%
+  mutate_if(is.factor, ~na_if(., "Seen but not answered")) %>% # Recode missing values to NAs in factor variables
+  mutate_if(is.factor, ~na_if(., "Don't know")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to say")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Seen but not answered")) %>% # Drop empty factor levels
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Don't know")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to say"))
+
+
+#Inspect dimensions
+dim(nbr.dem.raw.id)
+# Inspect colnames
+colnames(nbr.dem.raw.id)
+#Differences
+dim(nbr.dem.raw)[1]-dim(nbr.dem.raw.id)[1]
+```
+
+```{r Extracting date only from startDate}
+
+class(nbr.dem.raw.id$startDate)
+
+nbr.dem.raw.id <- mutate(nbr.dem.raw.id, start.date = as.Date(nbr.dem.raw.id$startDate))
+
+head(nbr.dem.raw.id$start.date)
+
+```
+
+
+```{r nbr dem calculating age from birthday}
+
+#add 1900 to birthyear
+nbr.dem.raw.id$Birthyear_numeric <- nbr.dem.raw.id$Birthyear_unc_numeric + 1900
+#create dob as date format
+nbr.dem.raw.id$Birthdate <- as.Date(paste(nbr.dem.raw.id$Birthyear_numeric,
+                                  nbr.dem.raw.id$Birthmonth_numeric,
+                                  nbr.dem.raw.id$Birthday_numeric,
+                                  sep = "-"))
+head(nbr.dem.raw.id$Birthdate)
+#Calculate dem.age(remove NAs as it throws an error)
+ages <- age_calc(na.omit(nbr.dem.raw.id$Birthdate), enddate = nbr.dem.raw.id$start.date, units = "years")
+#Create dem.agecolumn
+nbr.dem.raw.id$Age_uncleaned<- NA
+#Populate with values (excluding NAs)
+nbr.dem.raw.id$Age_uncleaned[!is.na(nbr.dem.raw.id$Birthdate)] <- ages
+#Round age down
+nbr.dem.raw.id$Age_uncleaned <- floor(nbr.dem.raw.id$Age_uncleaned)
+#Visualise
+head(nbr.dem.raw.id$Age_uncleaned)
+head(nbr.dem.raw.id$Birthdate)
+
+```
+
+```{r Clean Age variable}
+
+#Age outlier
+# Define age limits
+age_upper_limit = 117 # The oldest person in the world is 117 years
+age_lower_limit = 16
+
+#Identify number of outliers
+length(
+  which(
+    nbr.dem.raw.id$Age_uncleaned > age_upper_limit |
+      nbr.dem.raw.id$Age_uncleaned < age_lower_limit
+  )
+)
+
+#Remove age outliers
+nbr.dem.raw.id <- nbr.dem.raw.id %>%
+  mutate(
+    age =
+      if_else(
+        Age_uncleaned > age_upper_limit |
+          Age_uncleaned < age_lower_limit,
+        true = NA_real_,
+        false = Age_uncleaned,
+        missing = NA_real_
+      )
+  )
+```
+
+
+```{r Describe data}
+
+  nbr.dem.raw.id %>%
+    descr(
+      age)
+```
+
+         
+```{r Save data}
+saveRDS(nbr.dem.raw.id, file = "../data_clean/DEM_nbr_cleaned.rds")
+```
+

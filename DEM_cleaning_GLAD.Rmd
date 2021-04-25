@@ -1,0 +1,158 @@
+---
+title: "DEM cleaning script"
+author: "Eleanor Horne"
+date: "05/02/2021"
+output: html_document
+---
+
+#SETUP
+
+```{r Clear workspace}
+
+rm(list =ls())
+```
+
+```{r Setup, include=FALSE}
+
+knitr::opts_knit$set(root.dir = "~/OneDrive - King's College London/Date_Eleanor_Horne/Project")
+
+knitr::opts_chunk$set(echo = TRUE,
+                      comment = NA,
+                      prompt = FALSE,
+                      cache = FALSE)
+
+```
+
+```{r Library script}
+source("../scripts/libraries.R")
+
+```
+
+```{r Functions script}
+
+source("../scripts/functions.R")
+
+```
+
+```{r  Retrieve date}
+
+date = Sys.Date()
+date
+```
+
+```{r Read in the data}
+
+dem.glad.1 <- readRDS(file ="../data_raw/glad/dem_glad.rds")
+
+dim(dem.glad.1)
+colnames(dem.glad.1)
+
+```
+
+```{r Select variables}
+
+exclude_cols_dem <- c("ID",
+                  "startDate",
+                  "endDate")
+
+dem.glad.1.id <- dem.glad.1 %>% #new dataset with ID
+  drop_na(externalDataReference) %>% # Drop NAs
+  distinct(externalDataReference, .keep_all = TRUE) %>% # Remove duplicates based on ID
+  select(
+         ID = externalDataReference, # ID
+         startDate = startDate,
+         endDate_GLAD = endDate,
+         age_unc = dem.how_old_are_you_now.txt,
+         sex = dem.select_questionnaire_items_medical,
+         ethnicity_unc = dem.questions_based_ethnic_origin,
+         ethnicity_unc_text = dem.questions_based_ethnic_origin.txt,
+         dem.college_or_university_degree,
+         dem.a_levelsas_levels_or_equivalent,
+         dem.o_levelsgcses_or_equivalent,
+         dem.cses_or_equivalent,
+         dem.disability,
+         dem.nvq_or_hnd_or_hnc_or_equivalent,
+         dem.other_professional_qualifications,
+         dem.other_professional_qualifications_text.txt,
+         dem.none_of_the_above_education = dem.none_of_the_above,
+         transgender = dem.do_you_identify_as_transgender,
+         dem.what_is_your_current_maritalrelationship_status,
+         dem.what_is_your_current_employment_status,
+         ) %>%
+  add_numeric(., exclude = exclude_cols_dem) %>%
+  mutate_if(is.numeric, ~na_if(., -88)) %>% # Recode missing values to NAs in numeric variables
+  mutate_if(is.numeric, ~na_if(., -99)) %>%
+  mutate_if(is.numeric, ~na_if(., -77)) %>%
+  mutate_if(is.factor, ~na_if(., "Seen but not answered")) %>% # Recode missing values to NAs in factor variables
+  mutate_if(is.factor, ~na_if(., "Don't know")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to say")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Seen but not answered")) %>% # Drop empty factor levels
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Don't know")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to say"))
+# Inspect dimensions
+dim(dem.glad.1.id)
+# Inspect colnames
+colnames(dem.glad.1.id)
+#Differences
+dim(dem.glad.1)[1]-dim(dem.glad.1.id)[1]
+```
+
+```{r Age script}
+source("../scripts/dem_scripts/HLD_dem_age.R")
+# Inspect variable
+  dem.glad.1.id %>%
+    descr(
+      age)
+```
+
+```{r Ethnicity script, eval=FALSE, include=FALSE}
+source("../scripts/dem_scripts/HLD_dem_ethnicity.R")
+# Inspect variable
+  dem.glad.1.id %>%
+    freq(
+      ethnicity)
+# Inspect variable
+  dem.glad.1.id %>%
+    freq(
+      ethnicity_numeric)
+```
+
+#### Check disability numeric variable (1 = disability, 0 = no disability). No need for cleaning
+```{r inspect disability variable, eval=FALSE, include=FALSE}
+# Inspect variable
+  dem.glad.1.id %>%
+    freq(
+      dem.disability_numeric)
+```
+
+### Call in marital status cleaning script
+#No marital status question asked in follows up so use GLAD
+```{r eval=FALSE, include=FALSE}
+source("../scripts/dem_scripts/JM_dem.glad1_marital_status.R")
+# Inspect variable
+dem.glad.1.id %>% 
+  freq(dem.what_is_your_current_maritalrelationship_status_clean)
+```
+
+### Call in employment status cleaning script
+```{r eval=FALSE, include=FALSE}
+source("../scripts/dem_scripts/JM_dem.glad.1_employment_status.R")
+# Inspect variable
+dem.glad.1.id %>% 
+  freq(dem.what_is_your_current_employment_status_clean)
+```
+
+         
+# Call in prior physical illness script
+```{r eval=FALSE, include=FALSE}
+source("../scripts/dem_scripts/HLD_dem_prior_physical_illness.R")
+dem.glad.1.id %>% 
+  freq(prior_physical_illness)
+```
+
+```{r Save data}
+saveRDS(dem.glad.1.id, file = "../data_clean/DEM_glad_cleaned.rds")
+```
+

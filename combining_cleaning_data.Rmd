@@ -1,0 +1,242 @@
+---
+title: "Cleaning datasets and combining questionnaires"
+author: "Eleanor Horne"
+date: "21/04/2021"
+output: html_document
+---
+
+#SETUP
+
+```{r Clear workspace}
+
+rm(list =ls())
+```
+
+```{r Setup, include=FALSE}
+
+knitr::opts_knit$set(root.dir = "~/OneDrive - King's College London/Date_Eleanor_Horne/Project")
+
+knitr::opts_chunk$set(echo = TRUE,
+                      comment = NA,
+                      prompt = FALSE,
+                      cache = FALSE)
+
+```
+
+```{r Library script}
+source("./libraries.R")
+
+```
+
+```{r Functions script}
+
+source("./functions.R")
+
+```
+
+```{r  Retrieve date}
+
+date = Sys.Date()
+date
+
+```
+
+#Family History of Mental Health
+
+```{r Reading in family history of mental health from GLAD and NBR}
+
+mhfh_glad <- readRDS(file ="../data_raw/coping_glad/mhfh_coping_glad.rds") %>%
+  rename(ID = externalDataReference)
+colnames(mhfh_glad)
+
+mhfh_nbr <- readRDS(file ="../data_raw/coping_nbr/mhfh_coping_nbr.rds") %>%
+  rename(ID = subjectid) %>%
+  select(-c("externalDataReference","mhfh.are_you_a_twin_","mhfh.is_your_twin_..."))
+         
+colnames(mhfh_nbr)
+
+```
+
+```{r Combining MHFH GLAD and NBR}
+
+mhfh_raw <- rbind(mhfh_glad, mhfh_nbr)
+
+```
+
+```{r Processing MHFH data}
+
+exclude_cols <- c("ID",
+                  "startDate")
+
+mhfh <- mhfh_raw %>%
+  drop_na(ID) %>% # Drop NAs
+  distinct(ID, .keep_all = TRUE) %>% # Remove duplicates based on ID
+  mutate_if(is.numeric, ~na_if(., -88)) %>% # Recode missing values to NAs in numeric variables
+  mutate_if(is.numeric, ~na_if(., -99)) %>%
+  mutate_if(is.numeric, ~na_if(., -77)) %>%
+  mutate_if(is.factor, ~na_if(., "Seen but not answered")) %>% # Recode missing values to NAs in factor variables
+  mutate_if(is.factor, ~na_if(., "Don't know")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to say")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Seen but not answered")) %>% # Drop empty factor levels
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Don't know")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to say"))
+
+```
+
+```{r Recoding MHFH}
+
+#mhfh$mhfh.depression <- recode_factor(mhfh$mhfh.depression,"1" = "Yes", "0" = "No")
+#mhfh$mhfh.postnatal_depression <- recode_factor(mhfh$mhfh.postnatal_depression,"1" = "Yes", "0" = "No")
+#mhfh$mhfh.pmdd <- recode_factor(mhfh$mhfh.pmdd,"1" = "Yes", "0" = "No")
+#mhfh$mhfh.mania_hypomania_bipolar_or_manicdepression <- recode_factor(mhfh$mhfh.mania_hypomania_bipolar_or_manicdepression,"1" = "Yes", "0" = "No")
+#mhfh$mhfh.anxiety_nerves_or_generalised_anxiety_disorder <- #recode_factor(mhfh$mhfh.anxiety_nerves_or_generalised_anxiety_disorder,"1" = "Yes", "0" = "No")
+
+```
+
+#Lifetime depression
+
+```{r Reading in lifetime depression}
+
+cidid_raw <- readRDS(file ="../data_clean/CIDID_cleaned.rds")
+
+colnames(cidid_raw)
+
+```
+
+```{r Processing cidid data}
+
+cidid <- cidid_raw %>%
+  drop_na(ID) %>% # Drop NAs
+  distinct(ID, .keep_all = TRUE) %>% # Remove duplicates based on ID
+  mutate_if(is.numeric, ~na_if(., -88)) %>% # Recode missing values to NAs in numeric variables
+  mutate_if(is.numeric, ~na_if(., -99)) %>%
+  mutate_if(is.numeric, ~na_if(., -77)) %>%
+  mutate_if(is.factor, ~na_if(., "Seen but not answered")) %>% # Recode missing values to NAs in factor variables
+  mutate_if(is.factor, ~na_if(., "Don't know")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to say")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Seen but not answered")) %>% # Drop empty factor levels
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Don't know")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to say"))
+
+```
+
+#MHD
+
+
+```{r Reading in MHD from GLAD and NBR}
+
+mhd_glad <- readRDS(file ="../data_raw/coping_glad/mhd_coping_glad.rds") %>%
+  rename(ID = externalDataReference,
+         mhd.age.at.onset = mhd.depression.1) %>%
+  select(ID, mhd.age.at.onset)
+colnames(mhd_glad)
+
+mhd_nbr <- readRDS(file ="../data_raw/coping_nbr/mhd_coping_nbr.rds") %>%
+  rename(ID = subjectid,
+         mhd.age.at.onset = mhd.depression.1) %>%
+  select(ID, mhd.age.at.onset)
+         
+colnames(mhd_nbr)
+
+```
+
+```{r Combining MHFH GLAD and NBR}
+
+mhd_raw <- rbind(mhd_glad, mhd_nbr)
+
+```
+
+```{r Processing MHFH data}
+
+exclude_cols <- c("ID",
+                  "startDate")
+
+mhd <- mhd_raw %>%
+  drop_na(ID) %>% # Drop NAs
+  distinct(ID, .keep_all = TRUE) %>% # Remove duplicates based on ID
+  mutate_if(is.numeric, ~na_if(., -88)) %>% # Recode missing values to NAs in numeric variables
+  mutate_if(is.numeric, ~na_if(., -99)) %>%
+  mutate_if(is.numeric, ~na_if(., -77)) %>%
+  mutate_if(is.factor, ~na_if(., "Seen but not answered")) %>% # Recode missing values to NAs in factor variables
+  mutate_if(is.factor, ~na_if(., "Don't know")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to say")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Seen but not answered")) %>% # Drop empty factor levels
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Don't know")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to say"))
+
+```
+
+
+#Demographics
+
+```{r Reading in demographics}
+
+dem_glad <- readRDS(file ="../data_clean/DEM_glad_cleaned.rds") %>%
+  select(c(ID,age,sex))
+
+colnames(dem_glad)
+
+dem_nbr <- readRDS(file ="../data_clean/DEM_nbr_cleaned.rds") %>%
+  select(c(ID,age,sex))
+
+colnames(dem_nbr)
+
+```
+
+```{r Combining DEM GLAD and NBR}
+
+dem <- rbind(dem_glad,dem_nbr)
+
+```
+
+
+#Diagnoses
+
+```{r Reading in diagnostic data}
+
+#Agoraphobia
+#agp <- readRDS(file = "../data_clean/AGP_cleaned.rds")
+
+#GAD
+#cidia <- readRDS(file = "../data_clean/CIDIA_cleaned.rds")
+
+#MDD
+#cidid <- readRDS(file = "../data_clean/CIDID_cleaned.rds")
+
+#Panic disorder
+#pad <- readRDS(file = "../data_clean/PAD_cleaned.rds")
+
+#Social phobia
+#socp <- readRDS(file = "../data_clean/SOCP_cleaned.rds")
+
+#Specific phobia
+#spec <- readRDS(file = "../data_clean/SPEC_cleaned.rds")
+
+```
+
+#Joining data together
+
+```{r Join}
+dat.incomplete <- mhfh %>%
+  left_join(dem, by = "ID") %>%
+  left_join(cidid, by = "ID") %>%
+  left_join(mhd, by = "ID")
+
+```
+
+```{r Extract complete cases and move data frame}
+dat <- dat.incomplete %>%
+  drop_na(sex) %>%
+  drop_na(cidid.diagnosis) %>%
+  drop_na(mhfh.depression)
+```
+
+```{r Save data}
+saveRDS(dat, file = "../data_clean/combined_cleaned_dataset.rds")
+```
